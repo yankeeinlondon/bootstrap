@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+SUDO="sudo"
+
+if [[ "$(whoami)" == "root" ]]; then
+    SUDO=""
+fi
+
+echo "installing Zigbee2MQTT"
+
+${SUDO} curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+
+

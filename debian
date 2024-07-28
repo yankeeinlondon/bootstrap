@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+
+# Add Nala GPG signature (when needed)
+NALA_GPG="/etc/apt/trusted.gpg.d/volian-archive-scar-stable.gpg"
+nala="nala"
+SUDO="sudo"
+
+if [[ "$(whoami)" == "root" ]]; then
+    SUDO=""
+fi
+
+export BOLD='\033[1m'
+export DIM='\033[2m'
+export ITALIC='\033[3m'
+export RESET='\033[0m'
+export GREEN='\033[38;5;2m'
+export RED='\033[38;5;1m'
+export YELLOW='\033[38;5;3m'
+
+function log() {
+    printf "%b\\n" "${*}" >&2
+}
+
+function os_major() {
+    case "$OSTYPE" in
+    solaris*) echo "Solaris" ;;
+    darwin*)  echo "macOS" ;; 
+    linux*)   echo "Linux" ;;
+    bsd*)     echo "BSD" ;;
+    msys*)    echo "Windows" ;;
+    cygwin*)  echo "Windows (cygwin)" ;;
+    *)        echo "unknown: $OSTYPE" ;;
+    esac
+}
+
+# is_installed
+# 
+# checks whether a particular program passed in via $1 is installed on the OS or not
+function is_installed() {
+    local to_check=${1:?nothing was passed to is_function to check}
+    if command -v "${to_check}" &> /dev/null; then
+        return 0
+    else 
+        return 1
+    fi
+}
+
+function replace_substring_in_file() {
+    local match="${1:-not-defined}"
+    local replace="${2:-not-defined}"
+    local file="${3:-not-defined}"
+
+    sed -i -e "s/${match}/${replace}/g" "${file}"
+}
+
+
+echo "Setting up Debian LXC"
+echo "---------------------"
+
+${SUDO} apt update -y
+${SUDO} apt upgrade -y
+${SUDO} apt install git gpg -y
+
+if grep -q "export LANG" ~/.bashrc; then
+    log "- ${ITALIC}language settings${RESET} already set as variable in .bashrc"
+else
+    log "- adding ${BOLD}LANG${RESET} and ${BOLD}LC_ALL${RESET} settings"
+    # set language support to be Proxmox friendly
+    # both locally and then in bashrc to maintain 
+    export LANG=C.UTF-8
+    export LC_ALL=C.UTF-8
+    echo "export LANG=C.UTF-8" >> ~/.bashrc
+    echo "export LC_ALL=C.UTF-8" >> ~/.bashrc
+fi
+
+if test -f "$NALA_GPG"; then
+    log "- the ${BOLD}Nala GPG${RESET} signature already exists"
+else
+    log "${BOLD}Installing the Nala package manager in favor of Apt${RESET}"
+    echo "---------------------------------------------------"
+    echo ""
+    echo "deb http://deb.volian.org/volian/ scar main" | ${SUDO} tee /etc/apt/sources.list.d/volian-archive-scar-stable.list
+    wget -qO - https://deb.volian.org/volian/nala.key | ${SUDO} tee /etc/apt/trusted.gpg.d/volian-archive-scar-stable.gpg > /dev/null
+    ${SUDO} apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys A87015F3DA22D980
+    echo ""
+    log "- ${BOLD}Nala GPG${RESET} signature installed"
+
+    # install Nala
+    # debian uses nala-legacy
+    ${SUDO} apt update -y
+    ${SUDO} apt upgrade -y
+    ${SUDO} apt install  ${nala} -y
+
+    # fetch mirrors and interactively choose those with lowest latency
+    # this step is interactive
+    ${SUDO} nala fetch --country=US
+    echo ""
+    echo "- interactive Nala setup is completed and will not be repeated"
+    echo "- now installing core packages using nala's fetch command"
+    echo ""
+
+    ${SUDO} nala update
+    ${SUDO} nala upgrade
+    ${SUDO} nala install curl wget neofetch htop btop iperf3 lsof gh exa bat ripgrep shellcheck lsb-release npm bat exa htop btop fzf ninja-build gettext cmake unzip qemu-guest-agent git -y
+
+fi
+
+if which nvim; then
+    echo "- neovim appears to already be installed"
+else 
+    echo ""
+    log "Installing ${BOLD}Neovim${RESET} Source and compiling latest"
+    echo ""
+    git clone https://github.com/neovim/neovim
+    cd neovim || exit
+    make CMAKE_BUILD_TYPE=RelWithDebInfo
+    ls
+    cd build || exit
+    cpack -G DEB
+    # sudo dpkg -i nvim-linux64.deb
+    # sudo apt remove neovim
+    ${SUDO} dpkg -i --force-overwrite  nvim-linux64.deb
+
+    cd - || exit
+    echo ""
+    echo "- installed and built latest neovim"
+    echo ""
+    if ! is_installed "xclip"; then
+        ${SUDO} nala install xclip
+    fi
+fi
+
+# Create a private/public key (when not already existing)
+if [[ -f "${HOME}/.ssh/id_rsa" ]]; then
+    echo "- the private/public SSH keypair ( .ssh/id_rsa, .ssh/id_rsa.pub ) already exists on this machine"
+else
+    echo ""
+    echo "- we will now provision a private/public keypair for this machine"
+    ssh-keygen
+    echo ""
+fi
+
+# if [[ -f "${HOME}/.ssh/authorized_keys" ]]; then
+#     log "- a ${BOLD}.ssh/authorized_keys${RESET} file already exists"
+# else
+#     echo ""
+#     log "- adding a ${BOLD}authorized_keys${RESET} symbolic link for SSH"
+#     echo ""
+#     ln -s /root/.config/authorized_keys /root/.ssh/authorized_keys
+# fi
+
+# add batcat alias if missing
+if grep -q "alias cat" "${HOME}/.bashrc"; then
+    log "- ${BOLD}cat${RESET} alias in place; ignoring"
+else
+    echo "alias cat=\"batcat\"" >> "${HOME}/.bashrc"
+    export alias cat="batcat"
+    log "- added alias for ${BOLD}cat${RESET} to use 'batcat' command in .bashrc"
+fi
+
+# add nala aliases if missing
+if grep -q "apt()" "${HOME}/.bashrc"; then
+    log "- aliases for ${BOLD}nala${RESET} already set"
+else
+    echo "apt() { 
+        command nala \"\$@\"
+        }
+        sudo() {
+        if [ \"$1\" = \"apt\" ]; then
+            shift
+            command sudo nala \"\$@\"
+        else
+            command sudo \"\$@\"
+        fi
+    }" >> "${HOME}/.bashrc"
+fi
+
+# add aliases for exa
+if grep -q "alias ls='exa" "${HOME}/.bashrc"; then
+    log "- aliases for ${BOLD}exa${RESET} already in .bashrc"
+else
+    log "- adding ${BOLD}exa${RESET} aliases to .bashrc"
+    echo ""
+
+    # shellcheck disable=SC2129
+    echo "alias ls='exa -ag'" >> "${HOME}/.bashrc"
+    echo "alias ll='exa -lagh --git'" >> "${HOME}/.bashrc"
+    echo "alias lg='exa -lahG --git'">> "${HOME}/.bashrc"
+    echo "alias lt='exa -T'" >> "${HOME}/.bashrc"
+fi
+
+# ensure bin directory
+if grep -q ":/${HOME}/bin" "${HOME}/.bashrc"; then
+    log "- ${BOLD}~/bin${RESET} directory already created and added into PATH"
+else
+    echo "PATH=\"\$PATH:/${HOME}/bin\"" >> "${HOME}/.bashrc"
+    if [[ -d "/${HOME}/bin" ]] > /dev/null; then
+        log "- directory ${BOLD}~/bin${RESET} ${ITALIC}does${RESET} already exists so just added ref in .bashrc"
+    else
+        mkdir "${HOME}/bin"
+        chmod 755 "${HOME}/bin"
+    fi
+fi
+
+# add atuin
+if is_installed "atuin"; then
+    log "- ${BOLD}atuin${RESET} already installed"
+else
+    log "- installing ${BOLD}atuin${RESET} for history search"
+    bash -e <(curl --proto '=https' --tlsv1.2 -sSf https://setup.atuin.sh)
+    replace_substring_in_file "atuin init bash)" "atuin init bash --disable-up-arrow)" "${HOME}/.bashrc"
+    echo "- installed atuin"
+    echo ""
+fi
+
+chmod +x "${HOME}/bin"
+
+log ""

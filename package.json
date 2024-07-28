@@ -1,0 +1,17 @@
+{
+  "name": "bootstrap",
+  "version": "0.1.0",
+  "description": "Shell scripts for bootstrapping an OS",
+  "bin":{
+    "debian": "./debian",
+    "ubuntu": "./ubuntu",
+    "create-vm-template": "./create-vm-template"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": ""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
