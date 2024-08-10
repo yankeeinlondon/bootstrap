@@ -4,6 +4,12 @@
 NALA_GPG="/etc/apt/trusted.gpg.d/volian-archive-scar-stable.gpg"
 nala="nala"
 
+SUDO="sudo"
+
+if [[ "$(whoami)" == "root" ]]; then
+    SUDO=""
+fi
+
 #shellcheck disable=SC2034
 BOLD='\033[1m'
 #shellcheck disable=SC2034
@@ -15,6 +21,16 @@ RESET='\033[0m'
 GREEN='\033[38;5;2m'
 RED='\033[38;5;1m'
 YELLOW='\033[38;5;3m'
+
+function has_command() {
+    local -r cmd="${1:?cmd is missing}"
+
+    if command -v "${cmd}" &> /dev/null; then
+        return 0
+    else 
+        return 1
+    fi
+}
 
 function log() {
     printf "%b\\n" "${*}" >&2
@@ -56,9 +72,36 @@ function replace_substring_in_file() {
 echo "Setting up Debian LXC"
 echo "---------------------"
 
-apt update -y
-apt upgrade -y
-apt install gpg -y
+core=""
+
+if has_commend "gpg"; then
+    log "- gpg already installed"
+else
+    core="${core} gpg"
+fi
+
+if has_commend "git"; then
+    log "- git already installed"
+else
+    core="${core} git"
+fi
+
+if has_commend "make"; then
+    log "- ninja-build already installed"
+else
+    core="${core} ninja-build"
+fi
+
+${SUDO} apt update -y
+${SUDO} apt upgrade -y
+${SUDO} apt update -y
+${SUDO} apt upgrade -y
+if [ -z "$core" ]; then
+    "${SUDO} apt install ${core} -y"
+else
+    log "- all core utils already installed"
+fi
+
 
 if grep -q "export LANG" ~/.bashrc; then
     log "- ${ITALIC}language settings${RESET} already set as variable in .bashrc"
@@ -72,36 +115,48 @@ else
     echo "export LC_ALL=C.UTF-8" >> ~/.bashrc
 fi
 
+# NALA
+# --------------------------------------
 if test -f "$NALA_GPG"; then
     log "- the ${BOLD}Nala GPG${RESET} signature already exists"
 else
     log "${BOLD}Installing the Nala package manager in favor of Apt${RESET}"
     echo "---------------------------------------------------"
     echo ""
-    echo "deb http://deb.volian.org/volian/ scar main" | tee /etc/apt/sources.list.d/volian-archive-scar-stable.list
-    wget -qO - https://deb.volian.org/volian/scar.key | tee /etc/apt/trusted.gpg.d/volian-archive-scar-stable.gpg > /dev/null
-    apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys A87015F3DA22D980
+    wget https://gitlab.com/volian/volian-archive/-/raw/main/install-nala.sh 2>/dev/null /dev/null
+    echo "- downloaded latest installer"
+    bash -e "./install-nala.sh"
     echo ""
-    log "- ${BOLD}Nala GPG${RESET} signature installed"
-
-    # install Nala
-    # debian uses nala-legacy
-    apt update -y
-    apt upgrade -y
-    apt install  ${nala} -y
-
-    # fetch mirrors and interactively choose those with lowest latency
-    # this step is interactive
-    nala fetch --country=US
+    echo "- installed nala"
+    ${SUDO} nala fetch --country=US
     echo ""
     echo "- interactive Nala setup is completed and will not be repeated"
     echo "- now installing core packages using nala's fetch command"
     echo ""
 
-    nala update
-    nala upgrade
-    nala install curl wget neofetch htop btop iperf3 lsof gh exa bat ripgrep shellcheck lsb-release npm bat exa htop btop fzf ninja-build gettext cmake unzip curl git -y
+    ${SUDO} nala update
+    ${SUDO} nala upgrade
+    ${SUDO} nala install curl wget neofetch htop btop iperf3 lsof gh exa bat ripgrep shellcheck lsb-release npm bat exa htop btop fzf ninja-build gettext cmake unzip qemu-guest-agent git -y
 fi
+
+
+# add nala aliases if missing
+if grep -q "apt()" "${HOME}/.bashrc"; then
+    log "- aliases for ${BOLD}nala${RESET} already set"
+else
+    echo "apt() { 
+        command nala \"\$@\"
+        }
+        sudo() {
+        if [ \"$1\" = \"apt\" ]; then
+            shift
+            command sudo nala \"\$@\"
+        else
+            command sudo \"\$@\"
+        fi
+    }" >> "${HOME}/.bashrc"
+fi
+
 
 if which nvim; then
     echo "- neovim appears to already be installed"
@@ -156,23 +211,6 @@ else
     log "- added alias for ${BOLD}cat${RESET} to use 'batcat' command in .bashrc"
 fi
 
-# add nala aliases if missing
-if grep -q "apt()" "${HOME}/.bashrc"; then
-    log "- aliases for ${BOLD}nala${RESET} already set"
-else
-    echo "apt() { 
-        command nala \"\$@\"
-        }
-        sudo() {
-        if [ \"$1\" = \"apt\" ]; then
-            shift
-            command sudo nala \"\$@\"
-        else
-            command sudo \"\$@\"
-        fi
-    }" >> "${HOME}/.bashrc"
-fi
-
 # add aliases for exa
 if grep -q "alias ls='exa" "${HOME}/.bashrc"; then
     log "- aliases for ${BOLD}exa${RESET} already in .bashrc"
@@ -180,6 +218,7 @@ else
     log "- adding ${BOLD}exa${RESET} aliases to .bashrc"
     echo ""
 
+    # shellcheck disable=SC2129
     echo "alias ls='exa -ag'" >> "${HOME}/.bashrc"
     echo "alias ll='exa -lagh --git'" >> "${HOME}/.bashrc"
     echo "alias lg='exa -lahG --git'">> "${HOME}/.bashrc"
