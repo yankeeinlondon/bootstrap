@@ -86,8 +86,18 @@ else
     core="${core} ninja-build"
 fi
 
-${SUDO} apt update -y
-${SUDO} apt upgrade -y
+if is_installed "nala"; then
+    log "- nala installed, updating and ${ITALIC}upgrading${RESET} deps";
+    ${SUDO} apt update -y
+    ${SUDO} apt upgrade -y
+else 
+    log "- nala not installed yet, making sure deps are all up-to-date before"
+    log "  installing base dependencies and getting nala into place"
+    ${SUDO} apt update -y
+    ${SUDO} apt upgrade -y
+fi
+
+
 if [ -z "$core" ]; then
     "${SUDO} apt install ${core} -y"
 else
@@ -300,7 +310,7 @@ log ""
 if is_installed "gpg"; then 
 
     log "- the 'gpg' utiltity is installed and you have the following private keys:"
-    gpg --list-private-keys
+    gpg --list-secret-keys
     log ""
     log "- make sure you have at least the private key for ken@ken.net"
 else
