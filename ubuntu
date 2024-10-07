@@ -74,19 +74,19 @@ echo "---------------------"
 
 core=""
 
-if has_commend "gpg"; then
+if is_installed "gpg"; then
     log "- gpg already installed"
 else
     core="${core} gpg"
 fi
 
-if has_commend "git"; then
+if is_installed "git"; then
     log "- git already installed"
 else
     core="${core} git"
 fi
 
-if has_commend "make"; then
+if is_installed "make"; then
     log "- ninja-build already installed"
 else
     core="${core} ninja-build"
