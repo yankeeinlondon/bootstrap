@@ -136,7 +136,7 @@ else
 
     ${SUDO} nala update
     ${SUDO} nala upgrade
-    ${SUDO} nala install curl wget neofetch htop btop iperf3 lsof gh exa bat ripgrep shellcheck lsb-release npm bat exa htop btop fzf ninja-build gettext cmake unzip qemu-guest-agent git -y
+    ${SUDO} nala install curl wget neofetch htop btop iperf3 lsof gh exa bat ripgrep shellcheck lsb-release npm bat exa htop btop fzf ninja-build gettext cmake unzip just qemu-guest-agent git -y
 fi
 
 
