@@ -260,6 +260,33 @@ else
     echo ""
 fi
 
+if is_installed "just"; then 
+    log "- ${BOLD}just${RESET} runner is already installed"
+else 
+    git clone https://mpr.makedeb.org/just
+    cd just
+    makedeb -si
+    cd -
+fi
+
 chmod +x "${HOME}/bin"
+
+
+GIT_NAME=$(git config --global --get user.name)
+
+if [[ "$GIT_NAME" != "Ken Snyder" ]]; then 
+  echo "Git configuration is not setup; configuring now ..."
+  git config --global --set user.name "Ken Snyder"
+  git config --global --set user.email "ken@ken.net"
+  git config --global --set user.signingkey "82537A4603CB9C51"
+  git config --global --set commit.sign true 
+  git config --global --set commit.gpgsign true
+  git config --global --set core.pager "delta" 
+  git config --global --set delta.light false
+  git config --global --set git.conflictstyle "diff3" 
+  git config --global --set delta.side-by-side true
+else
+  echo "- Git configuration is already setup"
+fi
 
 log ""
