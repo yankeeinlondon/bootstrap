@@ -121,6 +121,12 @@ else
     bash -e "./install-nala.sh"
     echo ""
     echo "- installed nala"
+fi
+
+if is_installed "nala"; then
+    echo "- the 'nala' package manager is already in place"
+
+else
 
     # echo "deb http://deb.volian.org/volian/ scar main" | ${SUDO} tee /etc/apt/sources.list.d/volian-archive-scar-stable.list
     # wget -qO - https://deb.volian.org/volian/dists/nala/Release.gpg | ${SUDO} tee /etc/apt/trusted.gpg.d/volian-archive-scar-stable.gpg > /dev/null
@@ -287,6 +293,20 @@ if [[ "$GIT_NAME" != "Ken Snyder" ]]; then
   git config --global --set delta.side-by-side true
 else
   echo "- Git configuration is already setup"
+fi
+
+log ""
+
+if is_installed "gpg"; then 
+
+    log "- the 'gpg' utiltity is installed and you have the following private keys:"
+    gpg --list-private-keys
+    log ""
+    log "- make sure you have at least the private key for ken@ken.net"
+else
+
+    log "- 'gpg' is not found, will try to installl now"
+    nala install gpg
 fi
 
 log ""
